@@ -7,37 +7,49 @@
 init()
 {
 	thread code\events::addConnectEvent( ::onCon );
-	if( level.dvar[ "fs_players" ] )
+	
+#if isSyscallDefined mysql_close
+	if( level.dvar[ "mysql" ] )
+		thread code\mysql::topPlayers();
+#endif
+	
+	if( level.dvar[ "fs_players" ] && !level.dvar[ "mysql" ] )
 		thread topPlayers();
-	
-	while( !isDefined( level.inPrematchPeriod ) )
-		wait .05;
-	
-	if( level.inPrematchPeriod )
-		level waittill( "prematch_over" );
-		
-	waittillframeend;
-		
-	if( !isDefined( game[ "firstSpawnTime" ] ) )
-		game[ "firstSpawnTime" ] = getTime();
 }
 
 // executed from _globallogic, function "endGame( winner, endReasonText )"
 gameEnd( winner )
-{
-	level.TSGameTimeEnd = getTime();
-	level.TSGameTime = getTime() - game[ "firstSpawnTime" ];
+{	
+	if( level.players.size < 2 )
+		return;
 	
-	if( level.players.size > 1 )
-		updateSkill( winner );
-	
-	if( level.dvar[ "fs_players" ] )
+	updateSkill( winner );
+		
+	if( level.dvar[ "mysql" ] )
+	{
+#if isSyscallDefined mysql_close
+		players = level.players;
+		for ( index = 0; index < players.size; index++ )
+		{
+			player = players[ index ];
+			
+			if( !isDefined( player.pers[ "mu" ] ) || !isDefined( player.pers[ "sigma" ] ) )
+				continue;
+			
+			player thread code\mysql::saveRank();
+		}
+#endif
+	}
+	else if( level.dvar[ "fs_players" ] )
 	{
 		players = level.players;
 		for ( index = 0; index < players.size; index++ )
 		{
 			player = players[ index ];
 			guid = player getGuid();
+			
+			if( !isDefined( player.pers[ "mu" ] ) || !isDefined( player.pers[ "sigma" ] ) )
+				continue;
 			
 			level.FSCD[ guid ][ 6 ] = "mu;" + player.pers[ "mu" ];
 			level.FSCD[ guid ][ 7 ] = "sigma;" + player.pers[ "sigma" ];
@@ -52,7 +64,10 @@ gameEnd( winner )
 		{
 			player = players[ index ];
 			
-			saveRank( player );
+			if( !isDefined( player.pers[ "mu" ] ) || !isDefined( player.pers[ "sigma" ] ) )
+				continue;
+			
+			player thread saveRank();
 		}
 	}
 }
@@ -60,6 +75,9 @@ gameEnd( winner )
 updateSkill( winner )
 {
 	players = addPlayers();
+	
+	if( !isArray( players ) || players.size < 2 )
+		return;
 	
 	if( level.teambased )
 	{
@@ -134,7 +152,7 @@ onCon()
 	
 	if( isArray( level.TSTopPlayers ) )
 	{
-		id = self getPlayerID();
+		id = self getGuid();
 		if( level.TSTopPlayers[ 0 ][ 0 ] == id )
 			self.pers[ "prestige" ] = 9;
 		else if( isDefined( level.TSTopPlayers[ 1 ] ) && level.TSTopPlayers[ 1 ][ 0 ] == id )
@@ -143,63 +161,65 @@ onCon()
 			self.pers[ "prestige" ] = 6;
 	}
 	
-	self waittill( "spawned_player" );
-
-	if( !isDefined( self.pers[ "firstSpawnTime" ] ) )
-		self.pers[ "firstSpawnTime" ] = getTime();
+	if( level.dvar[ "fs_players" ] || level.dvar[ "mysql" ] )
+		return;
 	
-	if( !isDefined( game[ "firstSpawnTime" ] ) )
-		game[ "firstSpawnTime" ] = self.pers[ "firstSpawnTime" ];
+	self waittill( "spawned_player" );
 	
 	wait .1;
-	
-	if( !level.dvar[ "fs_players" ] )
+
+	str = "" + self getStat( 3170 ) + "." + self getStat( 3171 );
+	self.pers[ "mu" ] = float( str );
+		
+	wait .05;
+		
+	str = "" + self getStat( 3172 ) + "." + self getStat( 3173 );
+	self.pers[ "sigma" ] = float( str );
+		
+	wait .05;
+		
+	check = self getStat( 3174 );
+	check_init = self getStat( 3175 );
+		
+	if( check - 2 > self.pers[ "mu" ] - ( 3 * self.pers[ "sigma" ] ) || check_init != 100111 )
 	{
-		str = "" + self getStat( 3170 ) + "." + self getStat( 3171 );
-		self.pers[ "mu" ] = floatNoDvar( str );
-		
-		wait .05;
-		
-		str = "" + self getStat( 3172 ) + "." + self getStat( 3173 );
-		self.pers[ "sigma" ] = floatNoDvar( str );
-		
-		wait .05;
-		
-		check = self getStat( 3174 );
-		
-		if( check - 2 > self.pers[ "mu" ] - ( 3 * self.pers[ "sigma" ] ) )
-		{
-			self.pers[ "mu" ] = 25;
-			self.pers[ "sigma" ] = 25 / 3;
-		}
+		self.pers[ "mu" ] = 25;
+		self.pers[ "sigma" ] = 25 / 3;
+		self setStat( 3175, 100111 );
 	}
 }
 
-saveRank( player )
+saveRank()
 {
-	str = "" + player.pers[ "mu" ];
-	strTok( str, "." );
+	str_f = "" + self.pers[ "mu" ];
+	str = strTok( str_f, "." );
 
-	player setStat( 3170, int( str[ 0 ] ) );
+	self setStat( 3170, int( str[ 0 ] ) );
 	if( isDefined( str[ 1 ] ) )
-		player setStat( 3171, int( str[ 1 ] ) );
+		self setStat( 3171, int( str[ 1 ] ) );
 	else
-		player setStat( 3171, 0 );
+		self setStat( 3171, 0 );
 
-	str = "" + player.pers[ "sigma" ];
-	strTok( str, "." );
+	str = undefined;
+	str_f = "" + self.pers[ "sigma" ];
+	str = strTok( str_f, "." );
 
-	player setStat( 3172, int( str[ 0 ] ) );
+	self setStat( 3172, int( str[ 0 ] ) );
 	if( isDefined( str[ 1 ] ) )
-		player setStat( 3173, int( str[ 1 ] ) );
+		self setStat( 3173, int( str[ 1 ] ) );
 	else
-		player setStat( 3173, 0 );
+		self setStat( 3173, 0 );
 
-	player setStat( 3174, int( player.pers[ "mu" ] - ( 3 * player.pers[ "sigma" ] ) ) );
+	self setStat( 3174, int( self.pers[ "mu" ] - ( 3 * self.pers[ "sigma" ] ) ) );
 }
 
 addPlayers()
 {
+	waittillframeend;
+	
+	if( isDefined( level.TSPenality ) )
+		wait .05;
+
 	players = level.players;
 	t = 0;
 	rGroup = [];
@@ -207,10 +227,14 @@ addPlayers()
 	{
 		player = players[ i ];
 		
-		if( player.team != "axis" && player.team != "allies" )
+		if( ( player.team != "axis" && player.team != "allies" ) || !isDefined( player.pers[ "firstSpawnTime" ] ) )
 			continue;
 			
-		weight = ( level.TSGameTimeEnd - player.pers[ "firstSpawnTime" ] ) / level.TSGameTime;
+		weight = ( level.GameTimeEnd - player.pers[ "firstSpawnTime" ] ) / level.GameTime;
+		
+		if( !isDefined( weight ) )
+			weight = 0;
+		
 		if( weight > 0.95 )
 			weight = 1.0;
 		else if( weight < 0.05 )
@@ -238,14 +262,19 @@ addPlayers()
 
 updateTopPlayers()
 {
+	waittillframeend;
 	players = level.players;
 	
 	pool = [];
 	
 	for( i = 0; i < players.size; i++ )
 	{
-		pool[ i ][ 0 ] = players[ i ] getPlayerID();
-		pool[ i ][ 1 ] = players[ i ].pers[ "mu" ] - ( 3 * players[ i ].pers[ "sigma" ] );
+		if( !isDefined( players[ i ].pers[ "mu" ] ) || !isDefined( players[ i ].pers[ "sigma" ] ) )
+			continue;
+
+		n = pool.size;
+		pool[ n ][ 0 ] = players[ i ] getGuid();
+		pool[ n ][ 1 ] = players[ i ].pers[ "mu" ] - ( 3 * players[ i ].pers[ "sigma" ] );
 	}
 	
 	if( isArray( level.TSTopPlayers ) )
@@ -258,8 +287,7 @@ updateTopPlayers()
 			{
 				if( level.TSTopPlayers[ i ][ 0 ] == pool[ n ][ 0 ] )
 				{
-					if( level.TSTopPlayers[ i ][ 1 ] > pool[ n ][ 1 ] )
-						pool[ n ][ 1 ] = level.TSTopPlayers[ i ][ 1 ];
+					pool[ n ][ 1 ] = level.TSTopPlayers[ i ][ 1 ];
 					next = true;
 					break;
 				}
@@ -288,12 +316,13 @@ updateTopPlayers()
 	}
 	
 	arr = [];
-	n = 0;
-	for( i = 0; i < 6; i += 2 )
+	for( i = 0; i < 3; i++ )
 	{
-		arr[ i ] = pool[ n ][ 0 ];
-		arr[ i + 1 ] = pool[ n ][ 1 ];
-		n++;
+		if( !isArray( pool[ i ] ) )
+			break;
+
+		arr[ arr.size ] = pool[ i ][ 0 ];
+		arr[ arr.size ] = pool[ i ][ 1 ];
 	}
 	
 	writeToFile( "./ne_db/players/topratedplayers.db", arr );
@@ -307,11 +336,44 @@ topPlayers()
 		level.TSTopPlayers = [];
 		for( i = 0; i < array.size; i += 2 )
 		{
+			if( !isDefined( array[ i ] ) || !isDefined( array[ i + 1 ] ) )
+			{
+				FS_Remove( "./ne_db/players/topratedplayers.db" );
+				level.TSTopPlayers = undefined;
+				return;
+			}
+			
 			n = level.TSTopPlayers.size;
 			level.TSTopPlayers[ n ][ 0 ] = array[ i ]; // ID
-			level.TSTopPlayers[ n ][ 1 ] = floatNoDvar( array[ i + 1 ] ); // MEAN / 3*VARIANCE
+			level.TSTopPlayers[ n ][ 1 ] = float( array[ i + 1 ] ); // MEAN / 3*VARIANCE
 		}
 	}
+}
+
+penality( guid, time )
+{
+	if( getTime() - time < 120000 || level.players.size < 2 )
+		return;
+		
+	while( isDefined( level.TSPenality ) )
+		wait .05;
+		
+	level.TSPenality = true;
+	
+	mu = strtok( level.FSCD[ guid ][ 6 ], ";" );
+	mu = float( mu[ 1 ] );
+	
+	sigma = strtok( level.FSCD[ guid ][ 7 ], ";" );
+	sigma = float( sigma[ 1 ] );
+	
+	TS_AddPlayer( 0, mu, sigma, 1, 1 );
+	TS_AddPlayer( 1, mu, sigma, 2, 1 );
+	p = TS_Rate( 2, "1 0" );
+	
+	level.TSPenality = undefined;
+	
+	level.FSCD[ guid ][ 6 ] = "mu;" + p[ 0 ][ 0 ];
+	level.FSCD[ guid ][ 7 ] = "sigma;" + p[ 0 ][ 1 ];
 }
 
 // legacy
