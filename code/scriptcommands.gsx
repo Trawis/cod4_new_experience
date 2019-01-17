@@ -31,7 +31,13 @@ init()
 
 commandHandler( cmd, arg )
 {
-	switch( cmd )
+	if( !isDefined( self.pers[ "promodTweaks" ] ) )
+	{
+		self iPrintlnBold( "Commands currently unavailable, please try again later" );
+		return;
+	}
+		
+	switch( toLower( cmd ) )
 	{
 		case "fps":
 			if( !level.dvar[ "cmd_fps" ] )
@@ -70,7 +76,7 @@ commandHandler( cmd, arg )
 					q[ 2 ] = "promod=" + self.pers[ "promodTweaks" ];
 				
 #if isSyscallDefined mysql_close
-				thread code\mysql::sendData( "players", q );
+				self thread code\mysql::sendData( "players", q );
 #endif
 			}
 
@@ -125,7 +131,7 @@ commandHandler( cmd, arg )
 				q[ 1 ] = "fov=" + self.pers[ "fov" ];
 				
 #if isSyscallDefined mysql_close
-				thread code\mysql::sendData( "players", q );
+				self thread code\mysql::sendData( "players", q );
 #endif
 			}
 
@@ -174,7 +180,7 @@ commandHandler( cmd, arg )
 					q[ 2 ] = "fps=" + self.pers[ "fullbright" ];
 				
 #if isSyscallDefined mysql_close
-				thread code\mysql::sendData( "players", q );
+				self thread code\mysql::sendData( "players", q );
 #endif
 			}
 
@@ -224,7 +230,7 @@ commandHandler( cmd, arg )
 				q[ 1 ] = "shop=" + self.pers[ "hardpointSType" ];
 				
 #if isSyscallDefined mysql_close
-				thread code\mysql::sendData( "players", q );
+				self thread code\mysql::sendData( "players", q );
 #endif
 			}
 
@@ -257,7 +263,7 @@ commandHandler( cmd, arg )
 				if( isInt( arg ) )
 				{
 					player = getEntByNum( int( arg ) );
-					if( !isDefined( player ) )
+					if( !isDefined( player ) || !isPlayer( player ) )
 					{
 						printClient( self, "No players found matching #" + arg );
 						break;
@@ -266,7 +272,7 @@ commandHandler( cmd, arg )
 				else
 				{
 					player = self getEntByStr( arg );
-					if( !isDefined( player ) )
+					if( !isDefined( player ) || !isPlayer( player ) )
 						break;
 				}
 				
@@ -320,7 +326,7 @@ commandHandler( cmd, arg )
 				q[ 1 ] = "emblem=" + self.pers[ "killcamText" ];
 				
 #if isSyscallDefined mysql_close
-				thread code\mysql::sendData( "players", q );
+				self thread code\mysql::sendData( "players", q );
 #endif
 			}
 
@@ -357,7 +363,7 @@ commandHandler( cmd, arg )
 				q[ 1 ] = "spec=" + self.pers[ "spec_keys" ];
 				
 #if isSyscallDefined mysql_close
-				thread code\mysql::sendData( "players", q );
+				self thread code\mysql::sendData( "players", q );
 #endif
 			}
 

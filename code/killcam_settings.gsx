@@ -19,10 +19,13 @@ onPlayerKilled( eInflictor, attacker, iDamage, sMeansOfDeath, sWeapon, vDir, sHi
 	if( sMeansOfDeath == "MOD_FALLING" || sMeansOfDeath == "MOD_SUICIDE" )
 		return;
 	
-	team = attacker.team;
-	
-	if( isDefined( attacker ) && self != attacker && isDefined( team ) )
+	if( isDefined( attacker ) && self != attacker )
 	{
+		if( !isDefined( attacker.team ) || ( attacker.team != "axis" && attacker.team != "allies" ) )
+			return;
+		
+		team = attacker.team;
+
 		level.caminfo[ team ][ "attackerNum" ] = attacker getEntityNumber();
 		level.caminfo[ team ][ "attacker" ].name = attacker.name;
 		level.caminfo[ team ][ "attacker" ].fps = attacker.pers[ "fullbright" ];

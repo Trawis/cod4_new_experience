@@ -387,7 +387,12 @@ targetMarkers()
 		self.targetMarker[ j ].x = players[ i ].origin[ 0 ];
 		self.targetMarker[ j ].y = players[ i ].origin[ 1 ];
 		self.targetMarker[ j ].z = players[ i ].origin[ 2 ];
-		self.targetMarker[ j ].alpha = 1;
+		
+		if( !isAlive( players[ i ] ) || players[ i ] hasPerk( "specialty_gpsjammer" ) )
+			self.targetMarker[ j ].alpha = 0;
+		else
+			self.targetMarker[ j ].alpha = 1;
+			
 		self.targetMarker[ j ] setShader( "waypoint_kill", 15, 15 );
 		self.targetMarker[ j ] setWayPoint( true, "waypoint_kill" );
 		self.targetMarker[ j ] setTargetEnt( players[ i ] );
@@ -532,7 +537,7 @@ playSoundinSpace( alias, origin )
 
 godMod()
 {
-	self.maxHealth = 9999999999;
+	self.maxHealth = 120000;
 	self.health = self.maxHealth;
 }
 

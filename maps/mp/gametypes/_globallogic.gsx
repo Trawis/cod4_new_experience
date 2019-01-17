@@ -1620,6 +1620,12 @@ endGame( winner, endReasonText )
 		mysql_close( game[ "mysql" ] );
 #endif
 	
+	if( level.dvar[ "dynamic_rotation_enable" ] )
+	{
+		code\dynamic_rotation::checkTier();
+		waittillframeend;
+	}
+	
 	exitLevel( false );
 }
 
@@ -2219,7 +2225,6 @@ menuAutoAssign()
 	if ( assignment != self.pers["team"] && (self.sessionstate == "playing" || self.sessionstate == "dead") )
 	{
 		self.switching_teams = true;
-		self.switching_teams_time = getTime();
 		self.joining_team = assignment;
 		self.leaving_team = self.pers["team"];
 		self suicide();
@@ -2354,7 +2359,6 @@ menuAllies()
 		if(self.sessionstate == "playing")
 		{
 			self.switching_teams = true;
-			self.switching_teams_time = getTime();
 			self.joining_team = "allies";
 			self.leaving_team = self.pers["team"];
 			self suicide();
@@ -2414,7 +2418,6 @@ menuAxis()
 		if(self.sessionstate == "playing")
 		{
 			self.switching_teams = true;
-			self.switching_teams_time = getTime();
 			self.joining_team = "axis";
 			self.leaving_team = self.pers["team"];
 			self suicide();
@@ -4462,8 +4465,6 @@ Callback_PlayerDisconnect()
 	
 	[[level.onPlayerDisconnect]]();
 	
-	level thread code\events::onPlayerDisconnect();
-	
 	logPrint("Q;" + guid + ";" + self getEntityNumber() + ";" + self.name + "\n");
 	
 	for ( entry = 0; entry < level.players.size; entry++ )
@@ -4478,23 +4479,29 @@ Callback_PlayerDisconnect()
 			level.players[entry] = undefined;
 			break;
 		}
-	}	
-	for ( entry = 0; entry < level.players.size; entry++ )
+	}
+	cid = self.clientid;
+	if( isDefined( cid ) )
 	{
-		if ( isDefined( level.players[entry].killedPlayers[""+self.clientid] ) )
-			level.players[entry].killedPlayers[""+self.clientid] = undefined;
+		for ( entry = 0; entry < level.players.size; entry++ )
+		{
+			if ( isDefined( level.players[entry].killedPlayers[""+cid] ) )
+				level.players[entry].killedPlayers[""+cid] = undefined;
 
-		if ( isDefined( level.players[entry].killedPlayersCurrent[""+self.clientid] ) )
-			level.players[entry].killedPlayersCurrent[""+self.clientid] = undefined;
+			if ( isDefined( level.players[entry].killedPlayersCurrent[""+cid] ) )
+				level.players[entry].killedPlayersCurrent[""+cid] = undefined;
 
-		if ( isDefined( level.players[entry].killedBy[""+self.clientid] ) )
-			level.players[entry].killedBy[""+self.clientid] = undefined;
+			if ( isDefined( level.players[entry].killedBy[""+cid] ) )
+				level.players[entry].killedBy[""+cid] = undefined;
+		}
 	}
 
 	if ( level.gameEnded )
 		self removeDisconnectedPlayerFromPlacement();
 	
 	level thread updateTeamStatus();	
+	
+	level thread code\events::onPlayerDisconnect();
 }
 
 
@@ -4523,9 +4530,8 @@ isHeadShot( sWeapon, sHitLoc, sMeansOfDeath )
 
 Callback_PlayerDamage( eInflictor, eAttacker, iDamage, iDFlags, sMeansOfDeath, sWeapon, vPoint, vDir, sHitLoc, psOffsetTime )
 {
-	if( sWeapon == "frag_grenade_mp" && isDefined( eAttacker.switching_teams ) )
-		if( isDefined( eAttacker.switching_teams_time ) && getTime() - eAttacker.switching_teams_time < 4000 )
-			return;
+	if( sWeapon == "frag_grenade_mp" && isDefined( eAttacker.pers[ "teamTime" ] ) && getTime() - eAttacker.pers[ "teamTime" ] < 4000 )
+		return;
 
 	// create a class specialty checks; CAC:bulletdamage, CAC:armorvest
 	iDamage = maps\mp\gametypes\_class::cac_modified_damage( self, eAttacker, iDamage, sMeansOfDeath );
@@ -5037,14 +5043,15 @@ Callback_PlayerKilled(eInflictor, attacker, iDamage, sMeansOfDeath, sWeapon, vDi
 
 				if ( isAlive( attacker ) )
 				{
-					if( sWeapon != "artillery_mp" && sWeapon != "helicopter_mp" )
+					checkW = ( sWeapon == "artillery_mp" || isSubStr( sWeapon, "cobra" ) || isSubStr( sWeapon, "hind" ) );
+					if( !checkW )
 					{
 						attacker.cur_kill_streak++;
 						if( level.dvar["old_hardpoints"] )
 							attacker thread maps\mp\gametypes\_hardpoints::giveHardpointItemForStreak();
 					}
 						
-					else if( ( sWeapon == "artillery_mp" || sWeapon == "helicopter_mp" ) && level.dvar[ "hardpoint_streak" ] )
+					else if( checkW && level.dvar[ "hardpoint_streak" ] )
 					{
 						attacker.cur_kill_streak++;
 						if( level.dvar["old_hardpoints"] )
@@ -5920,6 +5927,9 @@ getMostKilled()
 
 obituaryText( victim, killer, weapon )
 {
+	if( !isDefined( killer ) || !isDefined( victim ) )
+		return;		
+		
 	string = killer + " [ ";
 	switch( weapon )
 	{

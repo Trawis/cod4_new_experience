@@ -7,7 +7,8 @@ spectating()
 {
 	self endon( "disconnect" );
 	
-	wait .25; // Let server assign all required variables for this player
+	while( !isDefined( self.pers[ "promodTweaks" ] ) )
+		wait .05;
 	
 	data = spawnStruct();
 	
@@ -18,15 +19,14 @@ spectating()
 		data.promod = self.pers[ "promodTweaks" ];
 		
 		while( self.sessionstate == "spectator" )
-		{			
-			if( self.spectatorClient < 0 ) // -1 ?
+		{	
+			if( self.spectatorClient < 0 )
 			{
 				wait 1;
 				continue;
 			}
-			
 			entity = getEntByNum( self.spectatorClient );
-			entityNum = self.spectatorClient;
+			oldC = self.spectatorClient;
 			
 			if( !isDefined( self.specFPS ) )
 				showFPS();
@@ -40,7 +40,7 @@ spectating()
 			
 			self thread visionSettingsForEnt( entity );
 			
-			while( entityNum == self.spectatorClient )
+			while( isDefined( entity ) && self.spectatorClient == oldC )
 			{
 				if( isDefined( self.moneyHud ) )
 					self.moneyhud setValue( int( entity.money ) );
@@ -129,7 +129,7 @@ visionSettings( data )
 
 visionSettingsForEnt( ent )
 {
-	if( !isDefined( ent.pers[ "fullbright" ] ) )
+	if( !isDefined( ent.pers[ "promodTweaks" ] ) )
 		return;
 
 	self.pers[ "fullbright" ] = ent.pers[ "fullbright" ];

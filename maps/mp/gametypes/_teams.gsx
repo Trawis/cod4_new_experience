@@ -64,10 +64,7 @@ onJoinedTeam()
 		
 		self logString( "joined team: " + self.pers[ "team" ] );
 		
-		if( !level.dvar[ "vip_balance" ] && isDefined( self.pers[ "vip" ] ) )
-			self.pers[ "teamTime" ] = undefined;
-		else
-			self.pers[ "teamTime" ] = getTime();
+		self.pers[ "teamTime" ] = getTime();
 			
 		level thread getTeamBalance();
 	}
@@ -107,6 +104,13 @@ getTeamBalance()
 	
 	if( abs( level.team["allies"] - level.team["axis"] ) > 1 )
 		thread balanceTeams();
+	else
+	{
+		level.balanceTeamNum[ "allies" ] = undefined;
+		level.balanceTeamNum[ "axis" ] = undefined;
+		level.balanceTeamEnt[ "allies" ] = undefined;
+		level.balanceTeamEnt[ "axis" ] = undefined;
+	}
 }
 
 balanceTeams()
@@ -134,7 +138,7 @@ balanceTeams()
 	{
 		p = players[ i ];
 		
-		if( !isDefined( p.team ) || !isDefined( p.pers[ "teamTime" ] ) )
+		if( !isDefined( p.team ) || !isDefined( p.pers[ "teamTime" ] ) || ( isDefined( p.pers[ "vip" ] ) && !level.dvar[ "vip_balance" ] ) )
 			continue;
 			
 		if( p.team == team )
